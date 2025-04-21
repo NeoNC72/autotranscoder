@@ -19,7 +19,6 @@ def parse_arguments():
     return parser.parse_args()
 
 def is_file_too_small(file_path, min_size_kb):
-    """Check if file is too small (likely fake)"""
     try:
         file_size_kb = os.path.getsize(file_path) / 1024
         return file_size_kb < min_size_kb
@@ -27,7 +26,6 @@ def is_file_too_small(file_path, min_size_kb):
         return False
 
 def delete_small_file(file_path):
-    """Delete a file that's too small (likely fake)"""
     try:
         os.remove(file_path)
         print(f"Deleted small file (likely fake): {file_path}")
@@ -37,7 +35,6 @@ def delete_small_file(file_path):
         return False
 
 def find_audio_files(input_folder, min_size_kb=200, delete_small=False):
-    """Recursively find all .flac and .mp3 files in the input folder"""
     audio_files = []
     small_files_count = 0
     
@@ -47,7 +44,6 @@ def find_audio_files(input_folder, min_size_kb=200, delete_small=False):
             full_path = os.path.join(root, file)
             
             if file_lower.endswith(('.flac', '.mp3')):
-                # Check if file is too small (likely fake)
                 if is_file_too_small(full_path, min_size_kb):
                     small_files_count += 1
                     print(f"Found small file (likely fake): {full_path}")
@@ -65,7 +61,6 @@ def find_audio_files(input_folder, min_size_kb=200, delete_small=False):
     return audio_files
 
 def get_unique_output_path(output_file):
-    """Handle filename conflicts by adding an index if necessary"""
     if not os.path.exists(output_file):
         return output_file
     
@@ -77,18 +72,13 @@ def get_unique_output_path(output_file):
     return f"{name}_{index}{ext}"
 
 def copy_file(mp3_file, output_folder):
-    """Copy an MP3 file to the output folder"""
     try:
-        # Use Path objects to handle Unicode paths correctly
         mp3_path = Path(mp3_file)
         output_dir = Path(output_folder)
         
-        # Create the output path
         output_file = output_dir / mp3_path.name
-        # Get a unique output path if there's a conflict
         output_file = get_unique_output_path(str(output_file))
         
-        # Copy the file
         shutil.copy2(mp3_file, output_file)
         
         print(f"\nCopied MP3 file: {mp3_file} -> {output_file}")
@@ -98,33 +88,25 @@ def copy_file(mp3_file, output_folder):
         return False
 
 def transcode_file(flac_file, output_folder):
-    """Transcode a FLAC file to MP3 using ffmpeg"""
     try:
-        # Use Path objects to handle Unicode paths correctly
         flac_path = Path(flac_file)
         output_dir = Path(output_folder)
         
-        # Extract just the filename without the path
         filename = flac_path.name
-        # Change extension from .flac to .mp3
         mp3_filename = flac_path.stem + ".mp3"
-        # Create the output path
         output_file = output_dir / mp3_filename
-        # Get a unique output path if there's a conflict
         output_file = get_unique_output_path(str(output_file))
         
-        # Set environment with UTF-8 encoding for subprocess
         my_env = os.environ.copy()
         my_env["PYTHONIOENCODING"] = "utf-8"
         
-        # Run ffmpeg to transcode the file
         cmd = [
             "ffmpeg",
             "-i", str(flac_path),
-            "-b:a", "320k",  # 320 kbps bitrate
-            "-c:a", "libmp3lame",  # MP3 codec
-            "-y",  # Overwrite output file if it exists
-            "-loglevel", "error",  # Reduce log output
+            "-b:a", "320k",
+            "-c:a", "libmp3lame",
+            "-y",
+            "-loglevel", "error",
             str(output_file)
         ]
         
@@ -132,8 +114,8 @@ def transcode_file(flac_file, output_folder):
             cmd, 
             stdout=subprocess.PIPE, 
             stderr=subprocess.PIPE,
-            encoding='utf-8',  # Explicitly set encoding to UTF-8
-            errors='replace',  # Replace invalid characters
+            encoding='utf-8',
+            errors='replace',
             env=my_env,
         )
         
@@ -149,17 +131,15 @@ def transcode_file(flac_file, output_folder):
         return False
 
 def process_file(file_info, output_folder):
-    """Process a file based on its type"""
     file_path, file_type = file_info
     
     if file_type == 'mp3':
         return copy_file(file_path, output_folder)
-    else:  # flac
+    else:
         return transcode_file(file_path, output_folder)
 
 def display_progress(completed, failed, total):
-    """Display a simple progress bar"""
-    width = 50  # width of the progress bar
+    width = 50
     percentage = (completed + failed) / total if total > 0 else 0
     filled_width = int(width * percentage)
     bar = '█' * filled_width + '-' * (width - filled_width)
@@ -169,10 +149,8 @@ def display_progress(completed, failed, total):
 def main():
     args = parse_arguments()
     
-    # Ensure the output folder exists
     os.makedirs(args.output_folder, exist_ok=True)
     
-    # Find all audio files
     print("Scanning for FLAC and MP3 files...")
     audio_files = find_audio_files(args.input_folder, args.min_size, args.delete_small)
     total_files = len(audio_files)
@@ -185,18 +163,15 @@ def main():
     mp3_count = sum(1 for _, file_type in audio_files if file_type == 'mp3')
     print(f"Found {total_files} valid audio files ({flac_count} FLAC, {mp3_count} MP3).")
     
-    # Process files in parallel
     print(f"Processing with {args.threads} threads...")
     
     completed = 0
     failed = 0
     
-    # Use ThreadPoolExecutor for parallel processing
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.threads) as executor:
         futures = {executor.submit(process_file, file_info, args.output_folder): file_info 
                   for file_info in audio_files}
         
-        # Process as they complete
         for future in concurrent.futures.as_completed(futures):
             if future.result():
                 completed += 1
@@ -207,11 +182,8 @@ def main():
     print(f"\nProcessing complete. {completed} files succeeded, {failed} files failed.")
 
 if __name__ == "__main__":
-    # Ensure proper handling of Unicode characters
     if sys.platform == "win32":
-        # For Windows
         os.system("chcp 65001 > NUL")
-        # Force UTF-8 for I/O operations
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
         sys.stderr.reconfigure(encoding='utf-8', errors='replace')
     
