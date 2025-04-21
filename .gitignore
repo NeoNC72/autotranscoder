@@ -3,3 +3,4 @@
 # But not these files...
 !autotranscode.py
 !.gitignore
+!README.md
